@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PDF to Image Converter</title>
+    <script>
+      // Suppress the Tailwind CDN warning since this is a client-side only app
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+        originalWarn.apply(console, args);
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -23,9 +31,10 @@
   "imports": {
     "react": "https://esm.sh/react@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?deps=react@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?deps=react@18.2.0",
-    "lucide-react": "https://esm.sh/lucide-react?deps=react@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+    "lucide-react": "https://esm.sh/lucide-react?deps=react@18.2.0"
   }
 }
 </script>
