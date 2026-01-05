@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileImage, Download, X, Image as ImageIcon, FileText, Loader2, Trash2, CheckCircle2, CheckSquare, Square, Package, Check, ArrowDownToLine, Layers } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+import JSZip from 'jszip';
 
-// Define types for window globals loaded via CDN
-declare global {
-  interface Window {
-    pdfjsLib: any;
-    JSZip: any;
-  }
-}
+// Handle ESM import differences for PDF.js:
+// In some environments, the module is the default export of the imported object.
+const pdfjs = (pdfjsLib as any).default || pdfjsLib;
+
+// Configure PDF.js worker
+pdfjs.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 
 interface ProcessedImage {
   id: number;
@@ -22,8 +23,6 @@ export default function PDFToImageConverter() {
   const [images, setImages] = useState<ProcessedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  const [libLoaded, setLibLoaded] = useState(false);
-  const [jszipLoaded, setJsZipLoaded] = useState(false);
   
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -31,40 +30,6 @@ export default function PDFToImageConverter() {
   const [isStitching, setIsStitching] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Load PDF.js and JSZip from CDN
-  useEffect(() => {
-    const loadLibs = async () => {
-      // Load PDF.js
-      if (!window.pdfjsLib) {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-        script.async = true;
-        script.onload = () => {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          setLibLoaded(true);
-        };
-        document.body.appendChild(script);
-      } else {
-        setLibLoaded(true);
-      }
-
-      // Load JSZip for batch download
-      if (!window.JSZip) {
-        const zipScript = document.createElement('script');
-        zipScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-        zipScript.async = true;
-        zipScript.onload = () => {
-          setJsZipLoaded(true);
-        };
-        document.body.appendChild(zipScript);
-      } else {
-        setJsZipLoaded(true);
-      }
-    };
-
-    loadLibs();
-  }, []);
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -95,11 +60,6 @@ export default function PDFToImageConverter() {
   };
 
   const processFile = async (file: File) => {
-    if (!libLoaded) {
-      alert('系統核心正在初始化，請稍後再試...');
-      return;
-    }
-
     setPdfFile(file);
     setImages([]);
     setSelectedIds(new Set()); // Reset selection
@@ -107,7 +67,8 @@ export default function PDFToImageConverter() {
     
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      // Use the local pdfjs variable which correctly handles the import
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
       
       const totalPages = pdf.numPages;
       setProgress({ current: 0, total: totalPages });
@@ -147,11 +108,6 @@ export default function PDFToImageConverter() {
           setImages(prev => [...prev, imgObj]);
         }
       }
-      
-      // Auto-select all pages after processing
-      // const allIds = new Set();
-      // for(let j=1; j<=totalPages; j++) allIds.add(j);
-      // setSelectedIds(allIds);
 
     } catch (error) {
       console.error('Error processing PDF:', error);
@@ -191,13 +147,15 @@ export default function PDFToImageConverter() {
   };
 
   const downloadSelectedZip = async () => {
-    if (!window.JSZip || selectedIds.size === 0 || !pdfFile) return;
+    if (selectedIds.size === 0 || !pdfFile) return;
     
     setIsZipping(true);
     try {
-      const zip = new window.JSZip();
+      const zip = new JSZip();
       const folderName = `${pdfFile.name.replace('.pdf', '')}_images`;
       const folder = zip.folder(folderName);
+      
+      if (!folder) throw new Error("Failed to create zip folder");
 
       images.forEach(img => {
         if (selectedIds.has(img.id)) {
@@ -312,7 +270,7 @@ export default function PDFToImageConverter() {
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">PDF 轉圖片神器</h1>
               <p className="text-xs text-slate-400">
-                {jszipLoaded ? '快速、安全、長圖拼接' : '正在載入核心模組...'}
+                快速、安全、長圖拼接
               </p>
             </div>
           </div>
@@ -408,7 +366,7 @@ export default function PDFToImageConverter() {
 
                   <button
                     onClick={downloadSelectedZip}
-                    disabled={selectedIds.size === 0 || isZipping || isStitching || !jszipLoaded}
+                    disabled={selectedIds.size === 0 || isZipping || isStitching}
                     className={`
                       flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all
                       ${selectedIds.size > 0 && !isZipping && !isStitching
@@ -526,13 +484,6 @@ export default function PDFToImageConverter() {
           </div>
         )}
       </main>
-
-      {/* Loading Script Fallback */}
-      {(!libLoaded || !jszipLoaded) && (
-        <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm animate-pulse z-50">
-          初始化核心引擎...
-        </div>
-      )}
     </div>
   );
 }
