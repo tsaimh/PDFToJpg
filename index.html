@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF to Image Converter</title>
+    <title>PDF 轉圖片神器 - 高效、安全、本地處理</title>
     <script>
-      // Suppress the Tailwind CDN warning since this is a client-side only app
+      // 阻擋 Tailwind CDN 的警告訊息
       const originalWarn = console.warn;
       console.warn = (...args) => {
         if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
@@ -29,14 +29,15 @@
   <script type="importmap">
 {
   "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.0",
+    "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "pdfjs-dist": "https://esm.sh/pdfjs-dist@^5.4.530",
-    "jszip": "https://esm.sh/jszip@^3.10.1"
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168",
+    "jszip": "https://esm.sh/jszip@^3.10.1",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>

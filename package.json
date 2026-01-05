@@ -10,8 +10,9 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
+    "jspdf": "^2.5.1",
     "lucide-react": "^0.294.0",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "4.4.168",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
