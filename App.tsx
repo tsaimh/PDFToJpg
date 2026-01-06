@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileImage, FileText, Loader2, Trash2, CheckSquare, Square, Package, Check, Files, AlertCircle, Lock, ShieldCheck, ChevronUp, SlidersHorizontal, Maximize, Cpu, RefreshCw, KeyRound, HardDrive, Hash, Settings2, Layers } from 'lucide-react';
+import { Upload, FileImage, FileText, Loader2, Trash2, CheckSquare, Square, Package, Check, Files, AlertCircle, Lock, ShieldCheck, ChevronUp, SlidersHorizontal, Maximize, Cpu, RefreshCw, KeyRound, HardDrive, Hash, Settings2, Layers, Unlock } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
@@ -32,8 +32,7 @@ export default function PDFToImageConverter() {
   // 密碼相關
   const [sourcePassword, setSourcePassword] = useState('');
   const [outputPassword, setOutputPassword] = useState('');
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [isPasswordError, setIsPasswordError] = useState(false);
+  const [isPasswordEnabled, setIsPasswordEnabled] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   // 輸出效能與體積設定
@@ -65,8 +64,7 @@ export default function PDFToImageConverter() {
     setPageRangeInput('');
     setSourcePassword('');
     setOutputPassword('');
-    setShowPasswordPrompt(false);
-    setIsPasswordError(false);
+    setIsPasswordEnabled(false);
     setIsUnlocked(false);
     setProgress({ current: 0, total: 0 });
     setErrorMsg(null);
@@ -125,8 +123,6 @@ export default function PDFToImageConverter() {
       });
 
       const pdf = await loadingTask.promise;
-      setShowPasswordPrompt(false);
-      setIsPasswordError(false);
       setIsUnlocked(true);
 
       const totalPages = pdf.numPages;
@@ -166,8 +162,7 @@ export default function PDFToImageConverter() {
       }
     } catch (error: any) {
       if (error.name === 'PasswordException' || error.message?.toLowerCase().includes('password')) {
-        setShowPasswordPrompt(true);
-        if (customPassword || sourcePassword) setIsPasswordError(true);
+        setErrorMsg('此 PDF 已加密，請在進階設定中輸入來源密碼後重新解析。');
       } else {
         setErrorMsg(error.message || '檔案解析失敗');
       }
@@ -179,7 +174,7 @@ export default function PDFToImageConverter() {
   const downloadPDF = async () => {
     const selected = images.filter(img => selectedIds.has(img.id)).sort((a,b) => a.id - b.id);
     if (selected.length === 0) return;
-    setExportType('正在加密並匯出 PDF...');
+    setExportType(isPasswordEnabled ? '正在加密並匯出 PDF...' : '正在匯出 PDF...');
     setIsExporting(true);
     
     setTimeout(() => {
@@ -191,7 +186,7 @@ export default function PDFToImageConverter() {
           compress: true
         });
 
-        if (outputPassword) {
+        if (isPasswordEnabled && outputPassword) {
           (doc as any).setEncryption({
             userPassword: outputPassword,
             ownerPassword: outputPassword,
@@ -204,7 +199,7 @@ export default function PDFToImageConverter() {
           doc.addImage(img.data, 'JPEG', 0, 0, img.width, img.height, undefined, 'FAST');
         });
 
-        doc.save(`${pdfFile?.name.replace(/\.[^/.]+$/, "")}_safe.pdf`);
+        doc.save(`${pdfFile?.name.replace(/\.[^/.]+$/, "")}_export.pdf`);
       } catch (e) {
         alert('匯出失敗');
       } finally {
@@ -334,19 +329,16 @@ export default function PDFToImageConverter() {
               </div>
 
               <div className="flex flex-wrap items-center gap-4">
-                {/* 頁碼範圍輸入 */}
                 <div className="flex items-center gap-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800 shadow-inner focus-within:border-blue-500/50 transition-all">
                   <Hash className="w-4 h-4 text-slate-700 ml-2" />
                   <input type="text" placeholder="1-5, 8" value={pageRangeInput} onChange={e => setPageRangeInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && parseAndApplyRange()} className="bg-transparent outline-none py-1.5 px-2 text-sm text-white placeholder:text-slate-900 w-24 font-black" />
                 </div>
 
-                {/* 格式切換 */}
                 <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
                   <button onClick={() => setOutputFormat('IMAGE')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all ${outputFormat === 'IMAGE' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30' : 'text-slate-500 hover:text-slate-300'}`}>圖片</button>
                   <button onClick={() => setOutputFormat('PDF')} className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all ${outputFormat === 'PDF' ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/30' : 'text-slate-500 hover:text-slate-300'}`}>PDF</button>
                 </div>
 
-                {/* 全選按鈕 */}
                 <button 
                   onClick={toggleSelectAll} 
                   className={`p-4 rounded-2xl border transition-all ${selectedIds.size === images.length ? 'bg-slate-800 border-blue-500 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'}`}
@@ -355,12 +347,10 @@ export default function PDFToImageConverter() {
                   {selectedIds.size === images.length ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                 </button>
 
-                {/* 進階設定開關 */}
                 <button onClick={() => setShowExportSettings(!showExportSettings)} className={`p-4 rounded-2xl border transition-all ${showExportSettings ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-white'}`} title="顯示進階設定">
                   {showExportSettings ? <ChevronUp className="w-5 h-5" /> : <SlidersHorizontal className="w-5 h-5" />}
                 </button>
 
-                {/* 匯出按鈕組 */}
                 <div className="flex items-center gap-3 ml-2">
                   {outputFormat === 'IMAGE' ? (
                     <>
@@ -373,7 +363,7 @@ export default function PDFToImageConverter() {
                     </>
                   ) : (
                     <button onClick={downloadPDF} disabled={selectedIds.size === 0 || isProcessing} className="flex items-center gap-3 px-8 py-4 rounded-[1.5rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm transition-all shadow-2xl active:scale-95 group disabled:opacity-20">
-                      <Files className="w-5 h-5 group-hover:rotate-12" /> 匯出加密 PDF <span className="opacity-50 text-[10px]">({estimatedSize})</span>
+                      <Files className="w-5 h-5 group-hover:rotate-12" /> 匯出 {isPasswordEnabled ? '加密' : ''} PDF <span className="opacity-50 text-[10px]">({estimatedSize})</span>
                     </button>
                   )}
                 </div>
@@ -402,9 +392,30 @@ export default function PDFToImageConverter() {
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2 mb-3"><Lock className="w-4 h-4" /> 來源 PDF 解鎖密碼</label>
                       <input type="password" placeholder="若有加密請輸入" value={sourcePassword} onChange={e => setSourcePassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm font-black outline-none focus:border-blue-500 transition-all placeholder:text-slate-900" />
                     </div>
-                    <div>
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2 mb-3"><ShieldCheck className="w-4 h-4" /> 設定輸出 PDF 密碼</label>
-                      <input type="password" placeholder="匯出後需要密碼開啟" value={outputPassword} onChange={e => setOutputPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm font-black outline-none focus:border-emerald-500 transition-all placeholder:text-slate-900" />
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-2xl transition-all ${isPasswordEnabled ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-800 text-slate-500'}`}>
+                            {isPasswordEnabled ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <span className="text-sm font-black text-white block">密碼保護</span>
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">啟用後產出的 PDF 將包含安全標記</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setIsPasswordEnabled(!isPasswordEnabled)} 
+                          className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${isPasswordEnabled ? 'bg-blue-600' : 'bg-slate-800'}`}
+                        >
+                          <div className={`w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ${isPasswordEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                      
+                      {isPasswordEnabled && (
+                        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                          <input type="password" placeholder="設定輸出密碼" value={outputPassword} onChange={e => setOutputPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm font-black outline-none focus:border-emerald-500 transition-all placeholder:text-slate-900" />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -417,7 +428,6 @@ export default function PDFToImageConverter() {
               </div>
             )}
 
-            {/* 進度 / 匯出 遮罩 */}
             {(isProcessing || isExporting) && (
               <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-2xl flex flex-col items-center justify-center p-8">
                 <div className="bg-slate-900 border border-white/5 p-16 rounded-[4rem] shadow-4xl flex flex-col items-center gap-10 max-w-sm w-full">
@@ -433,7 +443,6 @@ export default function PDFToImageConverter() {
               </div>
             )}
 
-            {/* 網格預覽 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-10">
               {images.map(img => (
                 <div key={img.id} className={`group relative bg-slate-900 rounded-[3rem] overflow-hidden border transition-all duration-500 cursor-pointer shadow-2xl ${selectedIds.has(img.id) ? 'border-blue-500 ring-[16px] ring-blue-500/5 -translate-y-3' : 'border-slate-800 hover:border-slate-600'}`} onClick={() => {const n = new Set(selectedIds); if(n.has(img.id)) n.delete(img.id); else n.add(img.id); setSelectedIds(n);}}>
@@ -459,7 +468,6 @@ export default function PDFToImageConverter() {
       
       <footer className="fixed bottom-0 w-full bg-slate-950/90 backdrop-blur-3xl border-t border-slate-900 p-6 text-center text-slate-700 text-[10px] font-black uppercase tracking-[0.5em] z-40">Privacy First • 本地解析 • 安全無痕</footer>
       
-      {/* 錯誤彈窗 */}
       {errorMsg && (
         <div className="fixed inset-0 z-[120] bg-slate-950/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 animate-in zoom-in duration-500">
           <div className="bg-slate-900 border border-red-500/20 p-16 rounded-[4rem] shadow-4xl max-w-md w-full text-center space-y-10 border-white/5">
@@ -468,7 +476,7 @@ export default function PDFToImageConverter() {
               <h3 className="text-3xl font-black text-white mb-4 tracking-tighter">處理過程中斷</h3>
               <p className="text-slate-500 text-sm font-medium leading-relaxed">{errorMsg}</p>
             </div>
-            <button onClick={resetAll} className="w-full py-6 bg-white text-black font-black rounded-[2rem] transition-all active:scale-95 uppercase tracking-widest text-xs shadow-2xl">返回重試</button>
+            <button onClick={() => {setErrorMsg(null); if(!images.length) resetAll();}} className="w-full py-6 bg-white text-black font-black rounded-[2rem] transition-all active:scale-95 uppercase tracking-widest text-xs shadow-2xl">返回重試</button>
           </div>
         </div>
       )}
