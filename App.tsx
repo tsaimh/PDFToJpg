@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Upload, FileImage, FileText, Loader2, Trash2, CheckSquare, Square, Package, Check, Files, AlertCircle, Lock, ShieldCheck, ChevronUp, SlidersHorizontal, Maximize, Cpu, RefreshCw, KeyRound, HardDrive, Hash, Settings2, Layers, Unlock } from 'lucide-react';
+import { Upload, FileImage, FileText, Loader2, Trash2, CheckSquare, Square, Package, Check, Files, AlertCircle, Lock, ShieldCheck, ChevronUp, SlidersHorizontal, Maximize, Cpu, RefreshCw, Hash, Settings2, Layers } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
-import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
+import JSZip from 'jszip';
+import Swal from 'sweetalert2';
 
 /**
  * PDF.js 配置
@@ -29,10 +30,8 @@ export default function PDFToImageConverter() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('IMAGE');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  // 密碼相關
+  // 密碼相關 (僅保留來源解鎖)
   const [sourcePassword, setSourcePassword] = useState('');
-  const [outputPassword, setOutputPassword] = useState('');
-  const [isPasswordEnabled, setIsPasswordEnabled] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   // 輸出效能與體積設定
@@ -63,8 +62,6 @@ export default function PDFToImageConverter() {
     setSelectedIds(new Set());
     setPageRangeInput('');
     setSourcePassword('');
-    setOutputPassword('');
-    setIsPasswordEnabled(false);
     setIsUnlocked(false);
     setProgress({ current: 0, total: 0 });
     setErrorMsg(null);
@@ -174,7 +171,8 @@ export default function PDFToImageConverter() {
   const downloadPDF = async () => {
     const selected = images.filter(img => selectedIds.has(img.id)).sort((a,b) => a.id - b.id);
     if (selected.length === 0) return;
-    setExportType(isPasswordEnabled ? '正在加密並匯出 PDF...' : '正在匯出 PDF...');
+
+    setExportType('正在匯出 PDF...');
     setIsExporting(true);
     
     setTimeout(() => {
@@ -186,22 +184,23 @@ export default function PDFToImageConverter() {
           compress: true
         });
 
-        if (isPasswordEnabled && outputPassword) {
-          (doc as any).setEncryption({
-            userPassword: outputPassword,
-            ownerPassword: outputPassword,
-            userPermissions: ['print', 'copy', 'modify']
-          });
-        }
-
         selected.forEach((img, index) => {
           if (index > 0) doc.addPage([img.width, img.height], img.width > img.height ? 'l' : 'p');
           doc.addImage(img.data, 'JPEG', 0, 0, img.width, img.height, undefined, 'FAST');
         });
 
         doc.save(`${pdfFile?.name.replace(/\.[^/.]+$/, "")}_export.pdf`);
-      } catch (e) {
-        alert('匯出失敗');
+      } catch (e: any) {
+        console.error(e);
+        Swal.fire({
+          icon: 'error',
+          title: '匯出失敗',
+          text: e.message || '未知錯誤',
+          confirmButtonText: '關閉',
+          confirmButtonColor: '#ef4444',
+          background: '#1e293b',
+          color: '#f8fafc'
+        });
       } finally {
         setIsExporting(false);
       }
@@ -259,7 +258,15 @@ export default function PDFToImageConverter() {
           link.click();
         }
       } catch (e) {
-        alert('長圖生成失敗');
+        Swal.fire({
+          icon: 'error',
+          title: '生成失敗',
+          text: '長圖生成失敗，請稍後再試',
+          confirmButtonText: '關閉',
+          confirmButtonColor: '#ef4444',
+          background: '#1e293b',
+          color: '#f8fafc'
+        });
       } finally {
         setIsExporting(false);
       }
@@ -363,7 +370,7 @@ export default function PDFToImageConverter() {
                     </>
                   ) : (
                     <button onClick={downloadPDF} disabled={selectedIds.size === 0 || isProcessing} className="flex items-center gap-3 px-8 py-4 rounded-[1.5rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm transition-all shadow-2xl active:scale-95 group disabled:opacity-20">
-                      <Files className="w-5 h-5 group-hover:rotate-12" /> 匯出 {isPasswordEnabled ? '加密' : ''} PDF <span className="opacity-50 text-[10px]">({estimatedSize})</span>
+                      <Files className="w-5 h-5 group-hover:rotate-12" /> 匯出 PDF <span className="opacity-50 text-[10px]">({estimatedSize})</span>
                     </button>
                   )}
                 </div>
@@ -378,7 +385,7 @@ export default function PDFToImageConverter() {
                   <div className="space-y-5">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2"><Maximize className="w-4 h-4" /> 解析度比例 (DPI)</label>
                     <div className="flex items-center justify-between text-2xl font-black text-white">{renderScale.toFixed(1)}<span className="text-xs text-blue-500">x</span></div>
-                    <input type="range" min="0.5" max="3.0" step="0.5" value={renderScale} onChange={e => setRenderScale(parseFloat(e.target.value))} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600" />
+                    <input type="range" min="0.5" max="3.0" step="0.1" value={renderScale} onChange={e => setRenderScale(parseFloat(e.target.value))} className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600" />
                   </div>
 
                   <div className="space-y-5">
@@ -391,31 +398,6 @@ export default function PDFToImageConverter() {
                     <div>
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2 mb-3"><Lock className="w-4 h-4" /> 來源 PDF 解鎖密碼</label>
                       <input type="password" placeholder="若有加密請輸入" value={sourcePassword} onChange={e => setSourcePassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm font-black outline-none focus:border-blue-500 transition-all placeholder:text-slate-900" />
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-2xl transition-all ${isPasswordEnabled ? 'bg-blue-500/10 text-blue-400' : 'bg-slate-800 text-slate-500'}`}>
-                            {isPasswordEnabled ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
-                          </div>
-                          <div>
-                            <span className="text-sm font-black text-white block">密碼保護</span>
-                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">啟用後產出的 PDF 將包含安全標記</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setIsPasswordEnabled(!isPasswordEnabled)} 
-                          className={`w-14 h-8 rounded-full p-1 transition-all duration-300 ${isPasswordEnabled ? 'bg-blue-600' : 'bg-slate-800'}`}
-                        >
-                          <div className={`w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform duration-300 ${isPasswordEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </button>
-                      </div>
-                      
-                      {isPasswordEnabled && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                          <input type="password" placeholder="設定輸出密碼" value={outputPassword} onChange={e => setOutputPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-sm font-black outline-none focus:border-emerald-500 transition-all placeholder:text-slate-900" />
-                        </div>
-                      )}
                     </div>
                   </div>
 
